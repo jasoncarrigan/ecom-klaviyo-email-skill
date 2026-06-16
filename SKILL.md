@@ -86,12 +86,19 @@ The page link from `$ARGUMENTS` is your source of truth. **Detect the type:**
 
 Then:
 
-1. Scrape the page: product name(s), price, any real promo, specs, what's included, key benefits, on-page reviews.
-2. **Download the real product image(s)** to `email-workspace/<run>/images/` at the highest resolution available. For a
+1. Scrape the page: product name(s), price, any real promo, specs, what's included, and key benefits.
+2. **Capture the on-site customer reviews.** The store's own product reviews are the best source of real customer
+   language and the most credible social proof for the email. Pull the star rating, review count, and the actual review
+   text (positive *and* critical). These often live in a reviews widget below the product (Shopify stores commonly use
+   Judge.me, Yotpo, Okendo, Loox, Stamped) and may load via JavaScript or "load more" — so a plain fetch can miss them.
+   If they don't appear, render the page (or hit the review app's feed/endpoint) and scroll/paginate for a representative
+   spread. Save the verbatim quotes: they feed the customer research in Phase 3 and supply the real review for the email's
+   always-on social-proof block (so it's a genuine quote, not invented).
+3. **Download the real product image(s)** to `email-workspace/<run>/images/` at the highest resolution available. For a
    collection, grab the hero image for each of the 3–6 featured products. These real photos are non-negotiable inputs to
    image generation later — without them the AI hallucinates the product.
-3. Verify prices/promos are current; if you can't confirm a claim, don't use it.
-4. Print a short product (or collection) summary.
+4. Verify prices/promos are current; if you can't confirm a claim, don't use it.
+5. Print a short product (or collection) summary (incl. photos + reviews captured).
 
 ---
 
@@ -100,9 +107,14 @@ Then:
 Great emails are researched, not guessed. Sit inside the customer's head. (This mirrors the proven customer-research
 approach from DTC ad work — apply the same depth here.)
 
-### 3a. Web research (5–6 searches minimum)
+### 3a. Start with the store's own reviews, then go external
 
-Use Tavily (`TAVILY_API_KEY`) or WebSearch across these angles:
+Begin with the **on-site reviews captured in Phase 2** — they're first-party, product-specific, and the richest source
+of real customer language (and they double as the email's social proof). Pull out the recurring praise, the exact
+phrases buyers use, the critical/1-star themes (objections), and who the reviewers seem to be. Lean on these first.
+
+Then widen out with external web research (5–6 searches minimum) via Tavily (`TAVILY_API_KEY`) or WebSearch to confirm
+patterns and surface angles the on-site reviews don't:
 
 1. **Reddit & forums** — `[product] reddit`, `[category] recommendations reddit`. Unfiltered praise and complaints.
 2. **Amazon / retailer reviews** — `[product] reviews`, `[product] 1 star reviews`, `[product] 5 star reviews`.
