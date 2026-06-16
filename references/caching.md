@@ -55,18 +55,22 @@ strategy or list changes a lot, the 30-day refresh picks it up; the user can als
 
 ## Universal blocks — capture once, validate, reuse
 
-`universal-blocks.json` holds the **full section JSON** (content + `universal_id`) for the store's universal header and
-footer, captured once from an existing Klaviyo DnD template (see `klaviyo-dnd.md` for how to find and confirm them):
+`universal-blocks.json` holds the **full section JSON** for the store's header and footer plus the brand `base_styles`
+array (font, heading sizes, link color), captured once from an existing Klaviyo DnD template (see `klaviyo-dnd.md` for
+how to find and confirm them):
 
 ```json
 {
   "saved_at": "2026-06-16T12:00:00Z",
-  "header": { /* the full header section object, incl. its universal_id */ },
-  "footer": { /* the full footer section object, incl. its universal_id */ }
+  "header": { /* the full header section object */ },
+  "footer": { /* the full footer section object (carries {% unsubscribe %}) */ },
+  "base_styles": [ /* the definition styles[] array: DM Sans, link color, heading sizes, etc. */ ]
 }
 ```
 
 These rarely change, so reuse them on every run; just validate like the brand profile ("I'll use your saved
-header/footer — still right?"). Because each section keeps its original `universal_id`, Klaviyo links it to the saved
-universal block automatically when the new email is created. Refresh only if the user updates their header/footer or
-asks. Like the rest of `brand/`, this file is git-ignored and never committed.
+header/footer — still right?"). **Note:** you capture these for their *content*. When building an email you embed them
+as ordinary sections with `id`/`data_id`/`universal_id` **stripped** (the connector rejects those — see `klaviyo-dnd.md`),
+so the email looks right but the sections are not live-linked saved blocks; the user can convert them to true Universal
+Content in Klaviyo's editor in a couple of clicks. Refresh only if the user updates their header/footer or asks. Like
+the rest of `brand/`, this file is git-ignored and never committed.

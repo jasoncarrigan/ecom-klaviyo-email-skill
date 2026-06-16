@@ -1,94 +1,97 @@
-# Building Klaviyo drag-and-drop (DnD) templates + reusing universal blocks
+# Building Klaviyo drag-and-drop (DnD) templates
 
-Deploy the email as a **drag-and-drop template** (`editor_type: SYSTEM_DRAGGABLE`), not a CODE/HTML template. Only DnD
-templates support universal/saved content blocks and stay editable in Klaviyo's visual editor. CODE templates lock the
-email to the HTML editor, where universal blocks can't be inserted.
+Deploy the email as a **drag-and-drop template** (`editor_type: SYSTEM_DRAGGABLE`), not a CODE/HTML template. DnD
+templates stay editable in Klaviyo's visual editor and carry the store's real header/footer content and brand type
+styles. (CODE templates work too and are simpler — keep them as a fallback if DnD fails.)
 
-## The big idea: universal blocks = sections with a `universal_id`
+## ⚠️ Hard-won connector constraints — read these first
 
-In a DnD `definition`, the email is `body.sections[]`. A **universal/saved block** is simply a `section` that carries a
-`universal_id` field. When two templates contain a section with the same `universal_id`, Klaviyo treats them as the same
-saved block and keeps them in sync. So to put the store's universal header and footer into a new email, you reuse those
-exact sections (content **and** their `universal_id`) — Klaviyo links them automatically.
+These were learned the hard way against the Klaviyo MCP connector. Ignore them and `create_dnd_email_template` /
+`update_dnd_email_template` will reject your payload repeatedly.
 
-The store's header and footer already exist as universal sections inside its older DnD templates. Capture them once,
-cache them, and wrap every generated email between them.
+1. **Never send `id` or `data_id` anywhere in the definition.** Not on the body, sections, rows, columns, blocks,
+   subblocks, or the `styles[]` entries. Klaviyo assigns them on create. Sending any → `400 "id is not allowed to be
+   specified on create"` (and the same on update). Build the whole definition with **none** of them.
+
+2. **You cannot set `universal_id` either — on create OR update.** Both reject `"universal_id is not allowed to be
+   specified"`. This means **the API cannot create or preserve a universal/saved-block link.** The "paste the universal
+   section verbatim so Klaviyo re-links it" idea does **not** work through this connector. Clone-and-update fails too:
+   `update_dnd_email_template` *fully replaces* the definition, so re-sending the header/footer forces their
+   `universal_id` back in → rejected; strip it and they stop being universal.
+   → **Therefore: capture the header/footer for their CONTENT and embed them as ordinary sections.** True universal
+   linkage is a one-time **manual step the user does in Klaviyo's visual editor** (open the email → select the header
+   section → Universal Content → Replace with the saved block; repeat for the footer). Tell the user this; don't try to
+   automate it.
+
+3. **Native `image` blocks require a valid Klaviyo `asset_id`.** A `src` with no `asset_id` → `"Static image blocks with
+   a src must also have an asset_id"`. And a *foreign* asset_id (e.g. one copied from another template) →
+   `"Asset with id ... not found"`. So for AI heroes / product photos / any externally-hosted image (catbox, cloudfront,
+   Shopify CDN), **use an `html` block with a plain `<img src="...">` instead** — html blocks have no asset_id
+   requirement and render the external image fine. Only keep a native `image` block if you genuinely uploaded the asset
+   to this account and have its real asset_id.
+
+4. **Build the definition with a script, write it to a file, then read it back to inline into the tool call.** The
+   definition is ~14 KB; assembling it by hand is error-prone. Write a small python step that builds the dict, strips any
+   `id`/`data_id`/`universal_id`, validates with `json.load`, and saves it; then Read that file and pass it as the
+   `definition` argument.
 
 ## Definition structure (annotated skeleton)
 
 ```
 definition = {
   "body": {
-    "properties": { "id": "bodyTable", "css_class": "root-container" },
+    "properties": { "css_class": "root-container" },      # NO "id" here
     "styles": { "background_color": "#FFFFFF", "width": 600 },
-    "id": "<unique-hex>",
     "sections": [
-      <UNIVERSAL HEADER SECTION>,      # reused from cache (has its own universal_id)
-      <generated body section 1>,      # your content
-      <generated body section 2>,
-      ...
-      <UNIVERSAL FOOTER SECTION>       # reused from cache (carries {% unsubscribe %})
+      <HEADER SECTION>,    # embedded from cache (content only — no universal_id)
+      <body section(s)>,   # your generated content
+      <FOOTER SECTION>     # embedded from cache (carries {% unsubscribe %})
     ]
   },
-  "styles": [ <base-styles>, <text-styles>, <link-styles>, <heading-1..4-styles>, <mobile-styles> ]
+  "styles": [ <base-styles>, <text-styles>, <link-styles>, <heading-1..4-styles>, <mobile-styles> ]   # NO "id" on each
 }
 ```
 
-A **section** → has `rows` → each row has `columns` (via `data.styles.column_layout`, e.g. `"1-column-full-width"`,
-`"2-columns-equal-width"`, `"3-columns-equal-width"`) → each column has `blocks`.
+A **section** → has `rows` → each row sets `data.styles.column_layout` (`"1-column-full-width"`,
+`"2-columns-equal-width"`, `"3-columns-equal-width"`, …) → each column has `blocks`. None of these carry `id`/`data_id`.
 
 ```
 section = { "content_type":"section", "type":"section",
             "data":{"properties":{},"display_options":{},"styles":{}},
-            "id":"<hex>", "data_id":"<hex>",
             "rows":[ { "data":{"styles":{"column_layout":"1-column-full-width"}},
-                      "id":"<hex>", "data_id":"<hex>",
-                      "columns":[ {"id":"<hex>","data_id":"<hex>","data":{},"blocks":[ ... ]} ] } ] }
+                      "columns":[ {"data":{}, "blocks":[ ... ]} ] } ] }
 ```
-
-**Every `id` and `data_id` must be unique** across the definition. Generate fresh 32-char hex strings (e.g.
-`uuid4().hex`) for each section/row/column/block you create. Do **not** reuse ids — except inside a cached universal
-section, which you paste verbatim (its ids and `universal_id` stay as-is so Klaviyo recognizes it).
 
 ## Block types you'll use for the body
 
-- **text** — rich content as HTML: `{"content_type":"block","type":"text","data":{"content":"<h1>...</h1>","styles":{}},"id":...,"data_id":...}`. Use for headline, body copy, the social-proof quote, price.
-- **image** — `data.properties` = `{"dynamic":false,"alt_text":"...","href":"<click url>","src":"<hosted url>"}`, `data.styles` = `{"width":600,"height":...}`. Use for the AI hero and product photos. `src` must be a hosted URL (host via Klaviyo image upload first — see `klaviyo-deploy.md`).
-- **button** — `data` = `{"content":"SHOP NOW","properties":{"href":"<url>"},"styles":{"background_color":"#213482"}}`. Bulletproof by default; use for CTAs.
-- **split** — two side-by-side `subblocks` (`table_image` + `table_text`); handy for a product card (image beside copy).
-- **product** — Klaviyo's dynamic product block, if pulling from a catalog feed.
-- **horizontal_rule**, **social** — dividers and social icons (usually these live in the universal footer already).
+- **text** — rich HTML: `{"content_type":"block","type":"text","data":{"content":"<h1>…</h1>","display_options":{},"styles":{…}}}`. Headline, body copy, price, the social-proof quote. Inline-style the HTML for color/size; the top-level `styles[]` array sets the defaults (pull font/colors from the brand profile — e.g. this store is **DM Sans**, link `#1d429a`).
+- **html** — `{"content_type":"block","type":"html","data":{"content":"<a href=…><img src=… ></a>","display_options":{}}}`. **Use this for every externally-hosted image** (AI hero, product photos) to avoid the asset_id requirement. Also fine for the logo if you only have its URL.
+- **button** — `{"content_type":"block","type":"button","data":{"content":"SHOP NOW","display_options":{},"properties":{"href":"<url>"},"styles":{"background_color":"#…","color":"#ffffff","border_radius":6,"text_align":"center","font_size":17,"font_weight":"bold","inner_padding_top":14,"inner_padding_bottom":14,"inner_padding_left":32,"inner_padding_right":32}}}`. Bulletproof; use for CTAs.
+- **horizontal_rule**, **social** — dividers / social icons (usually already inside the cached footer).
 
-For a **collection email**, build the grid with rows using `"2-columns-equal-width"` (or `3-`), one product image+text
-block per column, repeated for 3–6 products, under a shared hero + headline + "Shop the collection" button.
+For a **collection email**, build the grid with rows using `"2-columns-equal-width"` (or `3-`), one image/text block
+per column, repeated for 3–6 products, under a shared hero + headline + "Shop the collection" button.
 
-Pull colors, fonts, and the heading styles in the top-level `styles` array from the brand profile so type and color
-match the store. (Base text/heading/link styles control default block typography.)
+## Capturing the header & footer (one-time, then cached)
 
-## Capturing the universal header & footer (one-time, then cached)
+1. `list_email_templates` → find a `SYSTEM_DRAGGABLE` template (this store has **"Standard Campaign Template"**).
+2. `get_email_template(id, additional_fields_template=["definition"])`.
+3. In `definition.body.sections`, the sections carrying a `universal_id` are the universal blocks: the one near the
+   **top** (logo / nav) is the header; the one near the **bottom** (`{% unsubscribe %}` / social) is the footer. Also
+   grab the top-level `styles[]` array — it has the brand's real type (font family, heading sizes, link color).
+4. **Confirm with the user** which is header and which is footer.
+5. Cache the **full JSON** of both sections + the base styles to `brand/universal-blocks.json` (see `caching.md`).
 
-1. List the store's templates and find a `SYSTEM_DRAGGABLE` one (`list_email_templates`, look for `editor_type`).
-2. Pull its definition: `get_email_template(id, additional_fields_template=["definition"])`.
-3. Scan `definition.body.sections` for sections that have a `universal_id`. The one near the **top** containing the logo
-   / nav is the **header**; the one near the **bottom** containing `{% unsubscribe %}` / social icons is the **footer**.
-4. **Confirm with the user** which section is the header and which is the footer (show a short description of each
-   candidate — there may be several universal sections, e.g. a rewards or referral block — you only want header +
-   footer unless the user wants more).
-5. Cache the **full JSON** of the chosen header and footer sections (content + their `universal_id`) to
-   `brand/universal-blocks.json`. See `caching.md`.
-
-On later runs, reuse from cache (validate like the brand profile: "I'll use your saved header/footer — still right?").
-If the cache is missing and you can't capture them, fall back to leaving clearly-marked empty sections at top and bottom
-(e.g. a text block reading "⬆ add your Universal Header") so the user inserts them in the editor.
+When you build an email, paste those sections in as the first and last sections — but **strip their `id`, `data_id`,
+and `universal_id`** first (constraints #1, #2). They'll render identically as ordinary branded sections. If the cached
+header contains a native `image` logo block with an `asset_id` that fails on create, swap it for an `html` block with
+the logo's `<img src>` (constraint #3).
 
 ## Creating the template
 
-Prefer the connector: **`create_dnd_email_template(name, definition)`** with the assembled definition (header + body +
-footer). Then proceed exactly as before — create the draft campaign (A/B subjects, sender, placeholder audience) and
-attach this template. See `klaviyo-deploy.md`.
+`create_dnd_email_template(name, definition)` with the assembled, fully-id-stripped definition. Then create the draft
+campaign (A/B subjects, sender, placeholder audience) and attach it — see `klaviyo-deploy.md`. `render_email_template`
+can sanity-check the render before attaching.
 
-The REST `templates` endpoint historically creates CODE templates only; DnD creation is best done through the connector
-tool. If you must use REST and it won't accept a DnD definition, say so and create the template via the connector
-instead of falling back to a CODE template (which would defeat the universal-blocks fix).
-
-After creating, you can call `render_email_template` to sanity-check the render before attaching it to the campaign.
+If anything about DnD fails and you're blocked, fall back to a **CODE** template (`create_email_template`, full inline
+HTML with the header/footer baked in) — it's less editable but ships reliably.
