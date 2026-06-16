@@ -11,7 +11,8 @@ The repo ships a `.gitignore` that excludes `brand/`.
 ```
 brand/
 ├── brand-profile.md          # colors, fonts, logo URL, voice, sender defaults
-└── klaviyo-benchmarks.json   # performance stats + the two audience prompts, with a saved_at timestamp
+├── klaviyo-benchmarks.json   # performance stats + the two audience prompts, with a saved_at timestamp
+└── universal-blocks.json     # the store's universal header + footer sections (full JSON + universal_id)
 ```
 
 If the user runs the skill from a fresh directory with no `brand/`, treat the brand and benchmarks as unknown and
@@ -51,3 +52,21 @@ Suggested shape:
 
 Keep the two audience prompts in the cache too, so a reused benchmark still ships them in Phase 10. If the store's
 strategy or list changes a lot, the 30-day refresh picks it up; the user can also force a refresh by asking.
+
+## Universal blocks — capture once, validate, reuse
+
+`universal-blocks.json` holds the **full section JSON** (content + `universal_id`) for the store's universal header and
+footer, captured once from an existing Klaviyo DnD template (see `klaviyo-dnd.md` for how to find and confirm them):
+
+```json
+{
+  "saved_at": "2026-06-16T12:00:00Z",
+  "header": { /* the full header section object, incl. its universal_id */ },
+  "footer": { /* the full footer section object, incl. its universal_id */ }
+}
+```
+
+These rarely change, so reuse them on every run; just validate like the brand profile ("I'll use your saved
+header/footer — still right?"). Because each section keeps its original `universal_id`, Klaviyo links it to the saved
+universal block automatically when the new email is created. Refresh only if the user updates their header/footer or
+asks. Like the rest of `brand/`, this file is git-ignored and never committed.

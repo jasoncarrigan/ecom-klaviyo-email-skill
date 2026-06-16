@@ -64,7 +64,13 @@ taglines, do/don'ts, and the **default sender** (from-name + from-email).
    or at minimum the store URL.
 4. **Sender defaults** — pull the account's default from Klaviyo (`get_account_details` / settings). If unknown, ask the
    user for the from-name and from-email and store them in the profile.
-5. Save `brand/brand-profile.md` with a timestamp and print the Brand Profile.
+5. **Universal header & footer (Klaviyo saved blocks).** The store reuses a standard header and footer across emails.
+   Capture them once so every email this skill builds carries the real branding and a compliant unsubscribe footer
+   automatically. Read an existing drag-and-drop template, find the sections with a `universal_id`, confirm with the
+   user which is the header and which is the footer, and cache them. Full procedure in `references/klaviyo-dnd.md`;
+   cache location in `references/caching.md`. On later runs, reuse from cache (validate like the brand profile). If you
+   can't capture them, note it — the email will instead leave marked spaces for the user to insert the blocks manually.
+6. Save `brand/brand-profile.md` with a timestamp and print the Brand Profile.
 
 ---
 
@@ -204,22 +210,31 @@ If `GEMINI_API_KEY` isn't set, skip the AI hero, use product photos only, and te
 
 ---
 
-## PHASE 8 — Build the HTML email
+## PHASE 8 — Build the email body as drag-and-drop blocks
 
-Build one self-contained HTML file that renders everywhere (Outlook included). Read `references/email-html.md` first —
-it has the rules and a base scaffold for both the single-product layout and the collection grid. Essentials: table
-layout, inline CSS, ~600px single column, descriptive `alt` text on every image, a bulletproof table CTA button, the
-always-on social-proof block, and Klaviyo's injected unsubscribe footer left intact.
+Build the email as a Klaviyo **drag-and-drop (DnD) definition**, not raw HTML — this is what lets the email use the
+store's universal header/footer and stay editable in Klaviyo's visual editor. Read `references/klaviyo-dnd.md` for the
+definition structure and block types. Build **only the body** here — the header and footer come from the cached
+universal blocks in Phase 9, so don't add a logo header or a sign-off/unsubscribe footer to the body.
 
-Save to `email-workspace/<run>/email.html` and show the user a preview/summary before deploying.
+The body, as native blocks: hero image, headline (text), body copy (text), the always-on social-proof block (text), the
+product block — or a 2-up/3-up grid of product cards for a collection — and a bulletproof button CTA. The email best-
+practice principles in `references/email-html.md` still guide block styling (clear hierarchy, mobile-first, descriptive
+alt text, high-contrast CTA, real copy). Pull colors/fonts from the brand profile into the definition's style array.
+
+Host every image (AI hero + product photos) at a public URL before referencing it in an image block. Show the user a
+summary of the body before deploying.
 
 ---
 
 ## PHASE 9 — Deploy to Klaviyo as a draft (placeholder audience)
 
-Follow `references/klaviyo-deploy.md`. Sequence:
+Follow `references/klaviyo-deploy.md` and `references/klaviyo-dnd.md`. Sequence:
 
-1. Create an email **template** from the HTML.
+1. Assemble the **DnD template definition**: the cached **universal header** section, then the Phase 8 **body** sections,
+   then the cached **universal footer** section. Create it with `create_dnd_email_template` (never a CODE/HTML template —
+   that would break universal blocks). If the universal blocks couldn't be captured, leave clearly-marked empty header/
+   footer sections instead and tell the user to add them in the editor.
 2. Create a **campaign** in **draft**, configured as an **A/B subject-line test** with both subjects, the preheader, and
    the default sender, then attach the template.
 3. **Audience = placeholder only.** Use a single reusable segment named loudly, e.g.
@@ -274,8 +289,11 @@ Hand the user, clearly laid out:
 
 ## Reference files
 
-- `references/caching.md` — how brand profile and benchmark caching/refresh works and where files live.
-- `references/klaviyo-deploy.md` — reading performance, creating templates and draft campaigns, the placeholder
-  audience, and selecting via MCP or REST.
-- `references/email-html.md` — email HTML best practices + base scaffolds (single product and collection grid).
+- `references/caching.md` — how the brand profile, benchmark, and universal-blocks caches work and where files live.
+- `references/klaviyo-dnd.md` — building the drag-and-drop template definition and reusing the store's universal
+  header/footer (the universal-block mechanism). Read before Phase 8.
+- `references/klaviyo-deploy.md` — reading performance, creating the DnD template + draft campaign, the placeholder
+  audience, image hosting, via MCP or REST.
+- `references/email-html.md` — email best-practice principles that guide block styling (and an optional local HTML
+  preview).
 - `references/image-generation.md` — how to prompt Gemini / Nano Banana for the hero image, with the API pattern.

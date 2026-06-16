@@ -33,10 +33,12 @@ day/time, offers), and the best send window. Save to `brand/klaviyo-benchmarks.j
 
 ### Via connector (preferred)
 
-1. **Host images.** `upload_image_from_url` for each generated/local image → hosted URLs. Put them in the HTML before
-   creating the template.
-2. **Template.** `create_email_template` with `name` + the full `html`. Capture the template id. (`render_email_template`
-   can sanity-check the render.)
+1. **Host images.** `upload_image_from_url` for each generated/local image → hosted URLs. Put them in the image blocks
+   before assembling the definition.
+2. **DnD template.** `create_dnd_email_template` with `name` + the assembled `definition` (universal header + body
+   sections + universal footer — see `klaviyo-dnd.md`). Capture the template id. (`render_email_template` can sanity-
+   check the render.) **Do not** use `create_email_template`/CODE here — a CODE template can't use universal blocks,
+   which is the whole reason for this approach.
 3. **Placeholder audience.** Find or create one reusable segment named `⚠️ PLACEHOLDER — REPLACE BEFORE SENDING`
    scoped to a harmless test profile (the owner's own email). Reuse it across runs — don't create a new one each time.
 4. **Draft campaign.** `create_campaign` with: a name, email channel, the placeholder segment as the audience, the
@@ -59,7 +61,10 @@ content-type: application/json
 
 Sequence mirrors the connector path:
 - `POST /image-upload/` (or `/images/`) — host each image, get a URL.
-- `POST /templates/` with `attributes.name` + `attributes.html` — create the template.
+- **Template:** the REST `/templates/` endpoint creates CODE/HTML templates, which can't carry universal blocks. For
+  this skill, create the **DnD** template through the connector's `create_dnd_email_template` instead. If only REST is
+  available and it won't accept a DnD definition, tell the user rather than silently shipping a CODE template that
+  breaks the universal-header/footer feature.
 - Ensure the placeholder segment exists (`GET /segments/?filter=...`; create via `POST /segments/` only if missing),
   scoped to the test profile.
 - `POST /campaigns/` — audience = the placeholder segment id, the email message with subject/preview_text/from_email/

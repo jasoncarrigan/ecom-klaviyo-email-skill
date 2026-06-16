@@ -1,5 +1,10 @@
 # Email HTML that survives real inboxes
 
+> Note: this skill deploys the email as a Klaviyo **drag-and-drop** template (see `klaviyo-dnd.md`), not a raw HTML
+> template — that's what lets it use the store's universal header/footer. So treat this file as the **principles** that
+> guide how you style the DnD blocks (and as a guide if you ever want a local HTML preview), not as the artifact you
+> deploy. The same rules make individual `text`/`image`/`button` blocks look right.
+
 Email clients (especially Outlook, which renders with Word's engine) are years behind browsers. These rules exist
 because of that — follow them and the email looks right everywhere; ignore them and it breaks in ways a browser preview
 won't show.

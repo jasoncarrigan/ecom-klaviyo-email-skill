@@ -42,7 +42,7 @@ You give it **one link** — a product page (PDP) or a collection page (PLP) —
 - **Analyst** studies your own Klaviyo history to learn what's worked — best subjects, send times, top content — so this email aims to **beat your past performance**.
 - **Competitive analyst** scrapes competitor emails/ads to find the gap nobody's claiming.
 - **Copywriter + art director** writes the email and generates an AI hero image (using your real product photo as reference) alongside real product shots.
-- **Email developer** builds bulletproof, mobile-ready HTML (single product or a shop-the-collection grid).
+- **Email developer** builds the email as an editable Klaviyo drag-and-drop template (single product or a shop-the-collection grid) — with your **universal header & footer auto-inserted**, so every draft is already on-brand and has a compliant unsubscribe footer.
 - **Ops** loads it into Klaviyo as a **draft** with a clearly-marked placeholder audience — so nothing ever sends by accident — and hands you two ready-to-paste audience prompts (one targeted, one broad).
 
 All from one link and one sentence.
@@ -106,6 +106,7 @@ To avoid redoing slow work every run, the skill caches two things in a local `br
 
 - `brand/brand-profile.md` — your colors, fonts, logo, voice, and default sender. Validated with you each run.
 - `brand/klaviyo-benchmarks.json` — your performance benchmarks + audience prompts. Refreshed every 30 days.
+- `brand/universal-blocks.json` — your Klaviyo universal header & footer, captured once so they're auto-inserted into every email.
 
 These are personal to your store and are **git-ignored** — they never get committed.
 
