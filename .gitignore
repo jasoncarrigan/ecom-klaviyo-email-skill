@@ -1,0 +1,14 @@
+# Store-specific data — never commit. Personal to whoever runs the skill.
+brand/
+email-workspace/
+
+# Secrets — keys live in the shell, never in the repo
+.env
+*.env
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
