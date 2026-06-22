@@ -13,10 +13,10 @@
 Claude will:
 
 1. Tell you the 4 API keys you need (links below).
-2. Save them into your shell config (`~/.zshrc` on Mac, `~/.bashrc` on Linux) so every session picks them up.
+2. Give you the commands to store each key in your **macOS Keychain** (encrypted at rest), plus one line for your shell config that reads them back into env vars at session start.
 3. Tell you to restart once, and you're done.
 
-**⚠️ Security note — treat keys like passwords.** Add them yourself in your own terminal, never paste keys into a chat. Rotate them from each provider's dashboard after setup, and never commit `.zshrc`, `.bashrc`, or any env file to Git.
+**⚠️ Security note — treat keys like passwords.** Add them yourself in your own terminal, never paste keys into a chat. Store them in the **macOS Keychain** (see [Manual install](#-manual-install-if-youd-rather-do-it-yourself)) rather than as plaintext in `~/.zshrc` — that keeps them encrypted at rest and out of any dotfiles you might commit. Rotate them from each provider's dashboard after setup.
 
 ---
 
@@ -85,16 +85,31 @@ for f in caching klaviyo-deploy email-html image-generation; do
 done
 ```
 
-Then add to `~/.zshrc` (or `~/.bashrc`):
+Then store your keys. **Don't put them as plaintext in `~/.zshrc`** — that file is easy to accidentally commit and isn't encrypted. On macOS, put them in the **Keychain** instead and have your shell read them back at startup.
+
+**1. Save each key into the Keychain** (run in your own terminal, swap in your real values). `-U` lets you re-run to update a key later:
 
 ```
-export KLAVIYO_API_KEY="..."
-export GEMINI_API_KEY="..."
-export TAVILY_API_KEY="..."            # optional
-export SCRAPE_CREATORS_API_KEY="..."   # optional
+security add-generic-password -U -a "$USER" -s KLAVIYO_API_KEY        -w 'pk_...'
+security add-generic-password -U -a "$USER" -s GEMINI_API_KEY         -w 'AIza...'
+security add-generic-password -U -a "$USER" -s TAVILY_API_KEY         -w 'tvly-...'   # optional
+security add-generic-password -U -a "$USER" -s SCRAPE_CREATORS_API_KEY -w '...'        # optional
 ```
 
-Restart Claude (the **Code** tab of Claude Desktop, or the `claude` CLI). Run the skill.
+**2. Read them into env vars at session start.** Add this to `~/.zshrc` (or `~/.bashrc`) — it loads the keys but never stores their values in the file:
+
+```
+for k in KLAVIYO_API_KEY GEMINI_API_KEY TAVILY_API_KEY SCRAPE_CREATORS_API_KEY; do
+  v=$(security find-generic-password -a "$USER" -s "$k" -w 2>/dev/null) && export "$k=$v"
+done
+unset k v
+```
+
+The first time you run this, macOS will prompt to allow Keychain access — choose **Always Allow** so future sessions are quiet.
+
+Restart Claude (the **Code** tab of Claude Desktop, or the `claude` CLI) and run the skill.
+
+> **Not on macOS?** There's no Keychain. Keep the keys in a separate file your shell sources — e.g. `~/.config/ecom-klaviyo/secrets.env` with `chmod 600` and gitignored — and add `[ -f ~/.config/ecom-klaviyo/secrets.env ] && source ~/.config/ecom-klaviyo/secrets.env` to `~/.bashrc`. Still better than inlining keys into the dotfile itself, and never commit the secrets file.
 
 > **Note:** this skill runs in **Claude Code** (the Code tab of the Claude desktop app, or the CLI) — it needs network access to reach Gemini, Tavily, and Scrape Creators. It won't run in Cowork's sandbox.
 
